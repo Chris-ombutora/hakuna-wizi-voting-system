@@ -1,0 +1,33 @@
+body {
+    background-color: #f4f9f4; /* Light green background */
+    color: #333;
+    font-family: Arial, sans-serif;
+}
+
+.navbar, .btn-primary {
+    background-color: #28a745 !important; /* Green */
+    border-color: #198754;
+}
+
+.navbar-brand, .nav-link {
+    color: #fff !important;
+}
+
+.card {
+    border: 1px solid #28a745;
+}
+
+.form-control:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    .card {
+        margin-bottom: 10px;
+    }
+}
