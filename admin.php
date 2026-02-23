@@ -1,5 +1,5 @@
 <?php
-require 'config.php';
+require 'database_connection.php';
 if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
     header("Location: dashboard.php");
     exit;
@@ -86,4 +86,5 @@ foreach ($positions as $pos) {
     </div>
     <!-- Bootstrap JS -->
 </body>
+
 </html>
