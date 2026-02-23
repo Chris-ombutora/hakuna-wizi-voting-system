@@ -1,0 +1,55 @@
+<?php
+require 'config.php';
+header('Content-Type: application/json');
+
+if (!isset($_SESSION['user_id'])) {
+    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
+    exit;
+}
+
+$userId = $_SESSION['user_id'];
+$userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$userStmt->execute([$userId]);
+$user = $userStmt->fetch();
+
+if (!$user) {
+    echo json_encode(['success' => false, 'message' => 'User not found']);
+    exit;
+}
+
+$updated = false;
+$message = "No new votes submitted.";
+
+foreach ($_POST as $key => $value) {
+    if (strpos($key, 'vote_') === 0) {
+        $positionId = (int) substr($key, 5);
+        $candidateId = (int) $value;
+
+        // Verify candidate exists and belongs to position
+        $check = $pdo->prepare("SELECT id FROM candidates WHERE id = ? AND position_id = ?");
+        $check->execute([$candidateId, $positionId]);
+        if (!$check->fetch()) continue;
+
+        $pos = $pdo->prepare("SELECT LOWER(REPLACE(name, ' ', '_')) AS pos_key FROM positions WHERE id = ?");
+        $pos->execute([$positionId]);
+        $posKey = $pos->fetchColumn();
+
+        $votedField = 'voted_' . $posKey;
+
+        if ($user[$votedField] == 0) {
+            $voteStmt = $pdo->prepare("INSERT INTO votes (user_id, candidate_id) VALUES (?, ?)");
+            $voteStmt->execute([$userId, $candidateId]);
+
+            $updateStmt = $pdo->prepare("UPDATE users SET $votedField = 1 WHERE id = ?");
+            $updateStmt->execute([$userId]);
+
+            $updated = true;
+        }
+    }
+}
+
+if ($updated) {
+    echo json_encode(['success' => true, 'message' => 'Votes recorded successfully!']);
+} else {
+    echo json_encode(['success' => false, 'message' => $message]);
+}
