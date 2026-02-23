@@ -1,65 +1,115 @@
 <?php
 require 'config.php';
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
-}
-if (isset($_SESSION['is_admin']) && $_SESSION['is_admin']) {
-    header("Location: admin.php");
+    header("Location: index.php");
     exit;
 }
 
-// Fetch positions and candidates
+$userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$userStmt->execute([$_SESSION['user_id']]);
+$user = $userStmt->fetch();
+
 $positions = $pdo->query("SELECT * FROM positions")->fetchAll();
-$candidates = [];
-foreach ($positions as $pos) {
-    $stmt = $pdo->prepare("SELECT * FROM candidates WHERE position_id = ?");
-    $stmt->execute([$pos['id']]);
-    $candidates[$pos['id']] = $stmt->fetchAll();
-}
-
-$user = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-$user->execute([$_SESSION['user_id']]);
-$userData = $user->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Same head -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Hakuna Wizi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style> /* same green theme */ </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand" href="#">Hakuna Wizi</a>
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a href="results.php" class="nav-link">Results</a></li>
-                <li class="nav-item"><a href="logout.php" class="nav-link">Logout</a></li>
-            </ul>
+            <a class="navbar-brand text-white" href="#">Hakuna Wizi</a>
+            <div class="ms-auto">
+                <a href="results.php" class="btn btn-outline-light me-2">View Results</a>
+                <a href="logout.php" class="btn btn-outline-light">Logout</a>
+            </div>
         </div>
     </nav>
-    <div class="container mt-5">
-        <h2>Vote for Positions</h2>
-        <form action="vote.php" method="POST">
-            <?php foreach ($positions as $pos): ?>
-                <div class="card mb-3">
+
+    <div class="container mt-4">
+        <h2 class="mb-4 text-center">Cast Your Vote</h2>
+
+        <div id="voteMessage" class="alert d-none"></div>
+
+        <form id="votingForm">
+            <?php foreach ($positions as $pos): 
+                $posKey = strtolower(str_replace(' ', '_', $pos['name']));
+                $votedField = 'voted_' . $posKey;
+                $hasVoted = $user[$votedField];
+
+                $candStmt = $pdo->prepare("SELECT * FROM candidates WHERE position_id = ?");
+                $candStmt->execute([$pos['id']]);
+                $candidates = $candStmt->fetchAll();
+            ?>
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><?= htmlspecialchars($pos['name']) ?></h5>
+                    </div>
                     <div class="card-body">
-                        <h5><?php echo $pos['name']; ?></h5>
-                        <?php if ($userData['has_voted_' . strtolower($pos['name'])]): ?>
-                            <p class="text-success">You have already voted for this position.</p>
+                        <?php if ($hasVoted): ?>
+                            <p class="text-success fw-bold">You have already voted for this position.</p>
                         <?php else: ?>
-                            <?php foreach ($candidates[$pos['id']] as $cand): ?>
-                                <div class="form-check">
-                                    <input type="radio" name="vote_<?php echo $pos['id']; ?>" value="<?php echo $cand['id']; ?>" class="form-check-input" required>
-                                    <label><?php echo $cand['name']; ?></label>
+                            <?php foreach ($candidates as $cand): ?>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" 
+                                           name="vote_<?= $pos['id'] ?>" 
+                                           value="<?= $cand['id'] ?>" 
+                                           id="cand_<?= $cand['id'] ?>" required>
+                                    <label class="form-check-label" for="cand_<?= $cand['id'] ?>">
+                                        <?= htmlspecialchars($cand['name']) ?>
+                                    </label>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
-            <button type="submit" class="btn btn-primary">Submit Votes</button>
+
+            <?php if (!$user['voted_president'] || !$user['voted_vice']): ?>
+                <button type="submit" class="btn btn-primary btn-lg w-100" id="submitVoteBtn">Submit Votes</button>
+            <?php endif; ?>
         </form>
     </div>
-    <!-- Bootstrap JS -->
+
+    <script>
+        document.getElementById('votingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const messageDiv = document.getElementById('voteMessage');
+            const btn = document.getElementById('submitVoteBtn');
+
+            btn.disabled = true;
+            btn.innerText = "Submitting...";
+
+            fetch('vote_handler.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                messageDiv.classList.remove('d-none', 'alert-success', 'alert-danger');
+                messageDiv.classList.add(data.success ? 'alert-success' : 'alert-danger');
+                messageDiv.innerHTML = data.message;
+
+                if (data.success) {
+                    setTimeout(() => location.reload(), 1800); // refresh to show "already voted"
+                }
+            })
+            .catch(() => {
+                messageDiv.classList.remove('d-none');
+                messageDiv.classList.add('alert-danger');
+                messageDiv.innerHTML = "An error occurred. Please try again.";
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerText = "Submit Votes";
+            });
+        });
+    </script>
 </body>
 </html>
